@@ -13,10 +13,10 @@ or
 bash ./FGDS.sh megacorp.one
 ```
 
-with proxy
+with fireprox
 
 ```
-bash ./FGDS.sh megacorp.one 192.168.1.1 8080
+bash ./FGDS.sh megacorp.one https://1234asdf.execute-api.us-east-1.amazonaws.com/fireprox/
 ```
 
 This will work beatifully on Kali but an ultimately universal way is through Docker. Just run 

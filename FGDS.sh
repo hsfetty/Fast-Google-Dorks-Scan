@@ -18,10 +18,6 @@ version="3.171"			## Version Year.Day
 updatedate="October 21, 2023"	## The date of the last update
 releasedate="May 3, 2020"	## The date of release
 example_domain="megacorp.one" 	## Example domain
-domain=$1 			## Get the domain
-fireprox_url=$2			## Fireprox URL
-gsite="site:$domain" 		## Google Site
-folder="outputs"		## Output folder name
 
 ## Request the repository
 onlinevar=`curl -s https://raw.githubusercontent.com/IvanGlinkin/Fast-Google-Dorks-Scan/master/settings.conf`
@@ -1063,25 +1059,69 @@ if [ "$current_timestamp" -ge "$start_timestamp" ] && [ "$current_timestamp" -le
 	echo -e "";
 fi
 
+# Display help message
+function show_help {
+  echo "Usage: $0 [OPTIONS]"
+  echo
+  echo "Options:"
+  echo "  -d, --domain FILE     Domain name for dorks"
+  echo "  -w, --dorks-wordlist FILE     Use custom dorks from FILE"
+  echo "  -f, --fireprox-url URL     Pass requests through FireProx"
+  echo "  -o, --output-file FILE     Output file name"
+  echo "  -h, --help          Display this help message"
+  echo
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+      -d|--domain)
+      domain="$2"
+      gsite="site:$domain" 		## Google Site
+      shift 2
+      ;;
+    -w|--dorks-wordlist)
+      custom_dorks_file="$2"
+      shift 2
+      ;;
+    -f|--fireprox-url)
+      fireprox_url="$2"
+      shift 2
+      ;;
+    -o|--output-file)
+      output_filename="$2"
+      shift 2
+      ;;
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    *)
+      echo "Error: Unknown option '$1'"
+      show_help
+      exit 1
+      ;;
+  esac
+done
+
+
 # Check domain
 if [ -z "$domain" ] 
 then
-	echo -e "$ORANGE[ ! ] Usage example (simple):$CLEAR_FONT$RED_BOLD bash $0 $example_domain $CLEAR_FONT"
- 	echo -e "$ORANGE[ ! ] Usage example (fireprox): $CLEAR_FONT$RED_BOLD bash $0 $example_domain https://1234asdf.execute-api.us-east-1.amazonaws.com/fireprox/$CLEAR_FONT"
-	exit
+	echo "Please specify a domain name."
+	show_help
+	exit 1
+elif [ -z "$output_filename" ]
+then
+	echo "Please specify an output file."
+	show_help
+	exit 1
 else
-	### Check if the folder for outputs is existed. IF not, create a folder
-	if [ ! -d "$folder" ]; then mkdir "$folder"; fi
-	## Create an output file
-	filename=$(date +%Y%m%d_%H%M%S)_$domain.txt
-	
 	echo -e "$ORANGE[ ! ] Get information about:   $CLEAR_FONT $RED_BOLD$domain$CLEAR_FONT"
-	
 	if [ -n "$fireprox_url" ]
 	then
 		echo -e "$ORANGE[ ! ] Fireprox URL set to:   $CLEAR_FONT $RED_BOLD$fireprox_url $CLEAR_FONT"
 	fi
-	echo -e "$ORANGE[ ! ] Output file is saved:    $CLEAR_FONT $RED_BOLD$(pwd)$folder/$filename$CLEAR_FONT"
+	echo -e "$ORANGE[ ! ] Output file is saved:    $CLEAR_FONT $RED_BOLD$(pwd)/$output_filename$CLEAR_FONT"
 fi
 
 ### Function to get information about the site ### START
@@ -1146,7 +1186,33 @@ echo " "
 }
 ### Function to print the results ### END
 
-# Exploit
-echo -e "$GREEN_BOLD[ * ] Checking Login Page:$CLEAR_FONT"; PrintTheResults "${loginpagearray[@]}" | tee -a $folder/$filename;
-echo -e "$GREEN_BOLD[ * ] Checking specific files:$CLEAR_FONT"; PrintTheResults "${filetypesarray[@]}" | tee -a $folder/$filename;
-echo -e "$GREEN_BOLD[ * ] Checking path traversal:$CLEAR_FONT"; PrintTheResults "${dirtravarray[@]}" | tee -a $folder/$filename;
+
+# Define function to handle a single dork category
+function process_dorks {
+  local category_name=$1
+  shift
+  local dorks=("$@")
+
+  echo -e "$GREEN_BOLD[ * ] Checking $category_name:$CLEAR_FONT"
+  for dork in "${dorks[@]}"; do
+    PrintTheResults "$dork" | tee -a "$output_filename"
+  done
+}
+
+# Check for custom dorks file
+if [ -n "$custom_dorks_file" ] && [ -f "$custom_dorks_file" ]; then
+  echo -e "$GREEN_BOLD[ * ] Using custom dorks from file:$CLEAR_FONT $RED_BOLD$custom_dorks_file$CLEAR_FONT"
+  echo -e "$GREEN_BOLD[ * ] Running custom dorks search...$CLEAR_FONT"
+
+  while IFS= read -r dork || [ -n "$dork" ]; do
+    # Skip empty lines and comments
+    [[ -z "$dork" || "$dork" == \#* ]] && continue
+    PrintTheResults "$dork" | tee -a "$output_filename"
+  done < "$custom_dorks_file"
+
+else
+  # Default full scan using arrays
+  process_dorks "Login Pages" "${loginpagearray[@]}"
+  process_dorks "Specific Files" "${filetypesarray[@]}"
+  process_dorks "Path Traversal" "${dirtravarray[@]}"
+fi
